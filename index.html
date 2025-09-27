@@ -1,0 +1,418 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bimtech Stock Record</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+<div id="root" class="container mx-auto p-4"></div>
+
+<script type="text/babel">
+  const { useState, useEffect } = React;
+
+  const App = () => {
+    const [user, setUser] = useState(null);
+    const [products, setProducts] = useState([]);
+    const [transactions, setTransactions] = useState([]);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+      if (user) {
+        fetchProducts();
+        fetchTransactions();
+      }
+    }, [user]);
+
+    const fetchProducts = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/api/products');
+        setProducts(response.data);
+      } catch (err) {
+        setError('Failed to fetch products: ' + err.message);
+      }
+    };
+
+    const fetchTransactions = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/api/transactions');
+        setTransactions(response.data);
+      } catch (err) {
+        setError('Failed to fetch transactions: ' + err.message);
+      }
+    };
+
+    if (!user) {
+      return <Login setUser={setUser} setError={setError} />;
+    }
+
+    return (
+      <div className="bg-white shadow-md rounded-lg p-6">
+        <h1 className="text-2xl font-bold mb-4">Bimtech Stock Record</h1>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        <button
+          onClick={() => setUser(null)}
+          className="bg-red-500 text-white px-4 py-2 rounded mb-4 hover:bg-red-600"
+        >
+          Logout
+        </button>
+        <StockDashboard products={products} />
+        <ManageProducts
+          products={products}
+          fetchProducts={fetchProducts}
+          setError={setError}
+        />
+        <RecordTransaction
+          products={products}
+          fetchProducts={fetchProducts}
+          fetchTransactions={fetchTransactions}
+          setError={setError}
+        />
+        <ViewReports transactions={transactions} />
+      </div>
+    );
+  };
+
+  const Login = ({ setUser, setError }) => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleLogin = async (e) => {
+      e.preventDefault();
+      try {
+        const response = await axios.post('http://localhost:3000/api/login', {
+          username,
+          password,
+        });
+        setUser(response.data.user);
+        setError('');
+      } catch (err) {
+        setError('Login failed: ' + (err.response?.data?.error || err.message));
+      }
+    };
+
+    return (
+      <div className="max-w-md mx-auto mt-10 bg-white p-6 rounded-lg shadow-md">
+        <h2 className="text-xl font-bold mb-4">Login</h2>
+        {error && <p className="text-red-500 mb-4">{error}</p>}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Login
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  const StockDashboard = ({ products }) => (
+    <div className="mb-6">
+      <h2 className="text-xl font-bold mb-2">Stock Dashboard</h2>
+      {products.length === 0 ? (
+        <p>No products available.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {products.map((product) => (
+            <div
+              key={product.id}
+              className={`p-4 border rounded ${
+                product.quantity < 10 ? 'bg-red-100' : 'bg-green-100'
+              }`}
+            >
+              <p><strong>Name:</strong> {product.name}</p>
+              <p><strong>Category:</strong> {product.category}</p>
+              <p><strong>Quantity:</strong> {product.quantity}</p>
+              <p><strong>Branch:</strong> {product.branch}</p>
+              <p><strong>Batch:</strong> {product.batch_number}</p>
+              {product.quantity < 10 && (
+                <p className="text-red-500 font-bold">Low stock alert!</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const ManageProducts = ({ products, fetchProducts, setError }) => {
+    const [name, setName] = useState('');
+    const [category, setCategory] = useState('');
+    const [quantity, setQuantity] = useState('');
+    const [branch, setBranch] = useState('');
+    const [batchNumber, setBatchNumber] = useState('');
+
+    const handleAddProduct = async (e) => {
+      e.preventDefault();
+      try {
+        await axios.post('http://localhost:3000/api/products', {
+          name,
+          category,
+          quantity: parseInt(quantity),
+          branch,
+          batch_number: batchNumber,
+        });
+        setName('');
+        setCategory('');
+        setQuantity('');
+        setBranch('');
+        setBatchNumber('');
+        fetchProducts();
+        setError('');
+      } catch (err) {
+        setError('Failed to add product: ' + (err.response?.data?.error || err.message));
+      }
+    };
+
+    const handleDeleteProduct = async (id) => {
+      try {
+        await axios.delete(`http://localhost:3000/api/products/${id}`);
+        fetchProducts();
+        setError('');
+      } catch (err) {
+        setError('Failed to delete product: ' + (err.response?.data?.error || err.message));
+      }
+    };
+
+    return (
+      <div className="mb-6">
+        <h2 className="text-xl font-bold mb-2">Manage Products</h2>
+        <form onSubmit={handleAddProduct} className="space-y-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Category</label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Quantity</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Branch</label>
+            <select
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            >
+              <option value="">Select Branch</option>
+              <option value="Nyeri">Nyeri</option>
+              <option value="Naivasha">Naivasha</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Batch Number</label>
+            <input
+              type="text"
+              value={batchNumber}
+              onChange={(e) => setBatchNumber(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          >
+            Add Product
+          </button>
+        </form>
+        <h3 className="text-lg font-semibold mb-2">Product List</h3>
+        {products.map((product) => (
+          <div key={product.id} className="flex justify-between items-center p-2 border-b">
+              <span>
+                {product.name} ({product.category}, {product.quantity}, {product.branch}, Batch: {product.batch_number})
+              </span>
+            <button
+              onClick={() => handleDeleteProduct(product.id)}
+              className="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600"
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const RecordTransaction = ({ products, fetchProducts, fetchTransactions, setError }) => {
+    const [productId, setProductId] = useState('');
+    const [type, setType] = useState('purchase');
+    const [quantity, setQuantity] = useState('');
+    const [branch, setBranch] = useState('');
+    const [batchNumber, setBatchNumber] = useState('');
+
+    const handleTransaction = async (e) => {
+      e.preventDefault();
+      try {
+        await axios.post('http://localhost:3000/api/transactions', {
+          productId: parseInt(productId),
+          type,
+          quantity: parseInt(quantity),
+          branch,
+          batch_number: batchNumber,
+        });
+        setProductId('');
+        setType('purchase');
+        setQuantity('');
+        setBranch('');
+        setBatchNumber('');
+        fetchProducts();
+        fetchTransactions();
+        setError('');
+      } catch (err) {
+        setError('Failed to record transaction: ' + (err.response?.data?.error || err.message));
+      }
+    };
+
+    return (
+      <div className="mb-6">
+        <h2 className="text-xl font-bold mb-2">Record Transaction</h2>
+        <form onSubmit={handleTransaction} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium">Product</label>
+            <select
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            >
+              <option value="">Select Product</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} ({product.branch}, Batch: {product.batch_number})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Type</label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            >
+              <option value="purchase">Purchase</option>
+              <option value="sale">Sale</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Quantity</label>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Branch</label>
+            <select
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            >
+              <option value="">Select Branch</option>
+              <option value="Nyeri">Nyeri</option>
+              <option value="Naivasha">Naivasha</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Batch Number</label>
+            <input
+              type="text"
+              value={batchNumber}
+              onChange={(e) => setBatchNumber(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Record Transaction
+          </button>
+        </form>
+      </div>
+    );
+  };
+
+  const ViewReports = ({ transactions }) => (
+    <div>
+      <h2 className="text-xl font-bold mb-2">Stock Reports</h2>
+      <h3 className="text-lg font-semibold mb-2">Transaction History</h3>
+      {transactions.length === 0 ? (
+        <p>No transactions available.</p>
+      ) : (
+        <div className="space-y-2">
+          {transactions.map((transaction) => (
+            <div key={transaction.id} className="p-2 border-b">
+              <p><strong>Product ID:</strong> {transaction.productId}</p>
+              <p><strong>Type:</strong> {transaction.type}</p>
+              <p><strong>Quantity:</strong> {transaction.quantity}</p>
+              <p><strong>Branch:</strong> {transaction.branch}</p>
+              <p><strong>Batch:</strong> {transaction.batch_number}</p>
+              <p><strong>Date:</strong> {new Date(transaction.date).toLocaleString()}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97fa59de4fd5f48a',t:'MTc1Nzk2MjY1OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
